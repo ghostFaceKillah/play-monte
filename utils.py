@@ -27,6 +27,7 @@ NOTE: actions like '(97, 100)'  = ('left', 'right') are illegal
 and are ignored by gym env
 """
 
+import os
 import pygame
 
 
@@ -79,10 +80,13 @@ def extended_keymap():
                 for meta_key in meta_keys
             ]))
             action_map[keys] = action
-            print "{}: {}".format(keys, action)
 
     return action_map
 
 
 
 
+def mkdir_p(dir):
+    """ Check if directory exists and if not, make it."""
+    if not os.path.exists(dir):
+        os.makedirs(dir)

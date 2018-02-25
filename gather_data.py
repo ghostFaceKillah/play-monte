@@ -2,30 +2,56 @@
 My own experiments in gathering human expert data.
 """
 
+import csv
+import cv2
+import gym
 import numpy as np
+import os
 import pandas as pd
 
-import gym
-import gym.utils.play as play_utils
+import play
+import utils
 
 
 
-"""
-play_utils.play accepts a callback, here is excerpt from docs:
+def get_next_traj_id(root_data_dir='data'):
+    if not os.path.exists(root_data_dir):
+        return 0
+    return 1 + max([
+        int(x) for x in os.listdir(os.path.join(root_data_dir, 'screens'))
+    ])
 
-callback: lambda or None
-                 Callback if a callback is provided it will be executed after
-                 every step. It takes the following input:
-obs_t: observation before performing action
-obs_tp1: observation after performing action
-action: action that was executed
-rew: reward that was received
-done: whether the environemnt is done or not
-info: debug info
-"""
+
+def prepare_data_dir(traj_no, root_data_dir='data'):
+    screen_dir = os.path.join(root_data_dir, 'screens', "{:06d}".format(traj_no))
+
+    if not os.path.exists(screen_dir):
+        os.makedirs(screen_dir)
+
+    csv_dir = os.path.join(root_data_dir, 'trajectories')
+
+    if not os.path.exists(csv_dir):
+        os.makedirs(csv_dir)
+
+    csv_name = os.path.join(csv_dir, "{:07d}.csv".format(traj_no))
+
+    return screen_dir, csv_name
 
 
 class DataGathering(object):
+    """
+    play_utils.play accepts a callback, here is excerpt from docs:
+
+    callback: lambda or None
+                     Callback if a callback is provided it will be executed after
+                     every step. It takes the following input:
+    obs_t: observation before performing action
+    obs_tp1: observation after performing action
+    action: action that was executed
+    rew: reward that was received
+    done: whether the environemnt is done or not
+    info: debug info
+    """
     def __init__(self):
         self.obs_t = []
         self.obs_next = []
@@ -34,45 +60,62 @@ class DataGathering(object):
         self.done = []
         self.info = []
 
-        self.idx = 0
+        self.f = None
+        self.reset_logging()
+
+
+    def reset_logging(self):
+        if self.f is not None:
+            self.f.close()
+
+        self.traj_id = get_next_traj_id()
+        self.img_dir, csv_name = prepare_data_dir(self.traj_id)
+        self.f = open(csv_name, 'wt')
+        self.logger = csv.DictWriter(self.f, fieldnames=('frame','reward','score','terminal', 'action'))
+        self.logger.writeheader()
+
+        self.img_id = 0
+        self.score = 0
+
 
     def save_data(self, obs_t, obs_next, action, rew, done, info):
-        self.obs_t.append(obs_t)
-        self.obs_next.append(obs_next)
-        self.actions.append(action)
-        self.rewards.append(rew)
-        self.done.append(done)
-        self.info.append(info)
+        # self.obs_t.append(obs_t)
+        # self.obs_next.append(obs_next)
+        # self.actions.append(action)
+        # self.rewards.append(rew)
+        # self.done.append(done)
+        # self.info.append(info)
 
-        if self.idx % 1000 == 0:
-            print("Step {}".format(self.idx))
+        img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.img_id))
+        cv2.imwrite(img_path, cv2.cvtColor(obs_t, cv2.COLOR_RGB2BGR))
+        self.score += rew
+        self.logger.writerow({
+            'frame': self.img_id,
+            'reward': rew,
+            'score': self.score,
+            'terminal': done,
+            'action': action
+        })
 
-        self.idx += 1
+        # NOTE: If the framework is slow then this is the cause...
+        self.f.flush()
 
-    def write_to_drive(self):
-        print("There are {} data points".format(len(self.obs_t)))
-        print("Saving data...")
+        if done:
+            self.reset_logging()
 
-        np.save('data/obs_t.npy', np.array(self.obs_t))
-        np.save('data/obs_next.npy', np.array(self.obs_next))
-        np.save('data/actions.npy', np.array(self.actions))
-        np.save('data/rewards.npy', np.array(self.rewards))
-        np.save('data/done.npy', np.array(self.done))
-
-        print("Saved.")
+        self.img_id += 1
 
 
 if __name__ == '__main__':
-    # env = gym.make("MontezumaRevengeNoFrameskip-v4")
-    env = gym.make("PongNoFrameskip-v4")
+    env = gym.make("MontezumaRevengeNoFrameskip-v4")
 
     data = DataGathering()
 
-    play_utils.play(
+    play.play(
         env,
         zoom=4,
         fps=60,
-        callback=data.save_data
+        callback=data.save_data,
+        keys_to_action=utils.extended_keymap()
     )
 
-    data.write_to_drive()
