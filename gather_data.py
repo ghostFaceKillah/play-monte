@@ -1,17 +1,10 @@
-"""
-My own experiments in gathering human expert data.
-"""
-
 import csv
 import cv2
 import gym
-import numpy as np
 import os
-import pandas as pd
 
 import play
 import utils
-
 
 
 def get_next_traj_id(root_data_dir='data'):
@@ -63,7 +56,6 @@ class DataGathering(object):
         self.f = None
         self.reset_logging()
 
-
     def reset_logging(self):
         if self.f is not None:
             self.f.close()
@@ -71,21 +63,13 @@ class DataGathering(object):
         self.traj_id = get_next_traj_id()
         self.img_dir, csv_name = prepare_data_dir(self.traj_id)
         self.f = open(csv_name, 'wt')
-        self.logger = csv.DictWriter(self.f, fieldnames=('frame','reward','score','terminal', 'action'))
+        self.logger = csv.DictWriter(self.f, fieldnames=('frame','reward','score','terminal', 'action', 'lifes'))
         self.logger.writeheader()
 
         self.img_id = 0
         self.score = 0
 
-
     def save_data(self, obs_t, obs_next, action, rew, done, info):
-        # self.obs_t.append(obs_t)
-        # self.obs_next.append(obs_next)
-        # self.actions.append(action)
-        # self.rewards.append(rew)
-        # self.done.append(done)
-        # self.info.append(info)
-
         img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.img_id))
         cv2.imwrite(img_path, cv2.cvtColor(obs_t, cv2.COLOR_RGB2BGR))
         self.score += rew
@@ -94,7 +78,8 @@ class DataGathering(object):
             'reward': rew,
             'score': self.score,
             'terminal': done,
-            'action': action
+            'action': action,
+            'lifes': info['ale.lives']
         })
 
         # NOTE: If the framework is slow then this is the cause...
