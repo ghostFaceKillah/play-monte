@@ -19,6 +19,6 @@ pip install pygame
 Running
 ------
 ```
-python play.py
+python gather_data.py
 
 ```

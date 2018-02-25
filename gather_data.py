@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     play.play(
         env,
-        zoom=4,
+        zoom=2,
         fps=60,
         callback=data.save_data,
         keys_to_action=utils.extended_keymap()

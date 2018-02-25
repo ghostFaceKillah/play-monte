@@ -142,14 +142,3 @@ def play(env, transpose=True, fps=30, zoom=None, callback=None, keys_to_action=N
         pygame.display.flip()
         clock.tick(fps)
     pygame.quit()
-
-
-if __name__ == '__main__':
-    env = gym.make("MontezumaRevengeNoFrameskip-v4")
-    play(
-        env,
-        zoom=4,
-        fps=60,
-        keys_to_action=utils.extended_keymap()
-    )
-
