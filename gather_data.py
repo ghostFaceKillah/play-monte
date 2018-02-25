@@ -99,7 +99,7 @@ if __name__ == '__main__':
     play.play(
         env,
         zoom=2,
-        fps=60,
+        fps=40,
         callback=data.save_data,
         keys_to_action=utils.extended_keymap()
     )
