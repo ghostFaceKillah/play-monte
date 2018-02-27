@@ -26,7 +26,7 @@ def prepare_data_dir(traj_no, root_data_dir='data'):
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
 
-    csv_name = os.path.join(csv_dir, "{:07d}.csv".format(traj_no))
+    csv_name = os.path.join(csv_dir, "{:06d}.csv".format(traj_no))
 
     return screen_dir, csv_name
 
