@@ -71,7 +71,7 @@ class DataGathering(object):
 
     def save_data(self, obs_t, obs_next, action, rew, done, info):
         img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.img_id))
-        cv2.imwrite(img_path, cv2.cvtColor(obs_t, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(img_path, cv2.cvtColor(obs_next, cv2.COLOR_RGB2BGR))
         self.score += rew
         self.logger.writerow({
             'frame': self.img_id,
