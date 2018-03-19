@@ -2,6 +2,7 @@ import csv
 import cv2
 import gym
 import os
+import time
 
 import play
 import utils
@@ -12,6 +13,7 @@ def get_next_traj_id(root_data_dir='data'):
         return 0
     return 1 + max([
         int(x) for x in os.listdir(os.path.join(root_data_dir, 'screens'))
+        if x != '.DS_Store'
     ])
 
 
@@ -52,6 +54,7 @@ class DataGathering(object):
         self.rewards = []
         self.done = []
         self.info = []
+        self.lst_nonzro_act_t = time.time()
 
         self.f = None
         self.reset_logging()
@@ -70,25 +73,30 @@ class DataGathering(object):
         self.score = 0
 
     def save_data(self, obs_t, obs_next, action, rew, done, info):
-        img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.img_id))
-        cv2.imwrite(img_path, cv2.cvtColor(obs_t, cv2.COLOR_RGB2BGR))
-        self.score += rew
-        self.logger.writerow({
-            'frame': self.img_id,
-            'reward': rew,
-            'score': self.score,
-            'terminal': done,
-            'action': action,
-            'lifes': info['ale.lives']
-        })
+        if action != 0:
+            self.lst_nonzro_act_t = time.time()
+
+        # Only write data if there was any activity in last n seconds
+        if time.time() - self.lst_nonzro_act_t < 5:
+            img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.img_id))
+            cv2.imwrite(img_path, cv2.cvtColor(obs_t, cv2.COLOR_RGB2BGR))
+            self.score += rew
+            self.logger.writerow({
+                'frame': self.img_id,
+                'reward': rew,
+                'score': self.score,
+                'terminal': done,
+                'action': action,
+                'lifes': info['ale.lives']
+            })
+            self.img_id += 1
 
         # NOTE: If the framework is slow then this is the cause...
         self.f.flush()
 
         if done:
             self.reset_logging()
-
-        self.img_id += 1
+            self.img_id += 1
 
 
 if __name__ == '__main__':

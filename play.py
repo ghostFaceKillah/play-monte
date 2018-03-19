@@ -8,13 +8,15 @@ import utils
 
 def display_arr(screen, arr, video_size, transpose):
     arr_min, arr_max = arr.min(), arr.max()
+    sh, sw = screen.get_height(), screen.get_width()
     arr = 255.0 * (arr - arr_min) / (arr_max - arr_min)
     pyg_img = pygame.surfarray.make_surface(arr.swapaxes(0, 1) if transpose else arr)
     pyg_img = pygame.transform.scale(pyg_img, video_size)
-    screen.blit(pyg_img, (0,0))
+    width_onset = sw / 2 - video_size[0] / 2
+    screen.blit(pyg_img, (width_onset,0))
 
 
-def play(env, transpose=True, fps=30, zoom=None, callback=None, keys_to_action=None):
+def play(env, transpose=True, fps=30, zoom=None, fullscreen=False, callback=None, keys_to_action=None):
     """Allows one to play the game using keyboard.
 
     To simply play the game use:
@@ -90,14 +92,20 @@ def play(env, transpose=True, fps=30, zoom=None, callback=None, keys_to_action=N
     else:
         video_size = env.observation_space.shape[0], env.observation_space.shape[1]
 
-    if zoom is not None:
-        video_size = int(video_size[0] * zoom), int(video_size[1] * zoom)
 
     pressed_keys = []
     running = True
     env_done = True
 
-    screen = pygame.display.set_mode(video_size)
+    if fullscreen:
+        screen = pygame.display.set_mode((0,0),pygame.FULLSCREEN)
+        zoom = float(pygame.display.Info().current_h) / float(video_size[1])
+        video_size = int(video_size[0] * zoom), int(video_size[1] * zoom)
+    else:
+        if zoom is not None:
+            video_size = int(video_size[0] * zoom), int(video_size[1] * zoom)
+        screen = pygame.display.set_mode(video_size)
+
     clock = pygame.time.Clock()
 
 

@@ -5,6 +5,8 @@ Good luck !
 
 Steering: arrows + space for jump
 
+Recording stops if you don't move for 5 seconds.
+
 Dependencies
 ============
 
@@ -21,5 +23,10 @@ Running
 ------
 ```
 python gather_data.py
+
+```
+or if you prefer fullscreen
+```
+python gather_fullscreen.py
 
 ```
