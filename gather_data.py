@@ -79,7 +79,7 @@ class DataGathering(object):
         # Only write data if there was any activity in last n seconds
         if time.time() - self.lst_nonzro_act_t < 5:
             img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.img_id))
-            cv2.imwrite(img_path, cv2.cvtColor(obs_t, cv2.COLOR_RGB2BGR))
+            cv2.imwrite(img_path, cv2.cvtColor(obs_next, cv2.COLOR_RGB2BGR))
             self.score += rew
             self.logger.writerow({
                 'frame': self.img_id,
