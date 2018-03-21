@@ -11,10 +11,16 @@ import utils
 def get_next_traj_id(root_data_dir='data'):
     if not os.path.exists(root_data_dir):
         return 0
-    return 1 + max([
+    
+    relevant_files = [
         int(x) for x in os.listdir(os.path.join(root_data_dir, 'screens'))
         if x != '.DS_Store'
-    ])
+    ]
+    
+    if len(relevant_files) == 0:
+        return 0
+    else:
+        return 1 + max(relevant_files)
 
 
 def prepare_data_dir(traj_no, root_data_dir='data'):
