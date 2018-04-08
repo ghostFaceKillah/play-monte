@@ -74,7 +74,7 @@ def extended_keymap():
     action_map = {}
 
     for steering in steering_variants:
-        for meta_keys, action in raw_action_map.iteritems():
+        for meta_keys, action in raw_action_map.items():
             keys = tuple(sorted([
                 steering[meta_key]
                 for meta_key in meta_keys

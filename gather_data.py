@@ -1,6 +1,7 @@
 import csv
 import cv2
 import gym
+import numpy as np
 import os
 import time
 
@@ -25,9 +26,13 @@ def get_next_traj_id(root_data_dir='data'):
 
 def prepare_data_dir(traj_no, root_data_dir='data'):
     screen_dir = os.path.join(root_data_dir, 'screens', "{:06d}".format(traj_no))
+    states_dir = os.path.join(root_data_dir, 'states', "{:06d}".format(traj_no))
 
     if not os.path.exists(screen_dir):
         os.makedirs(screen_dir)
+
+    if not os.path.exists(states_dir):
+        os.makedirs(states_dir)
 
     csv_dir = os.path.join(root_data_dir, 'trajectories')
 
@@ -36,7 +41,7 @@ def prepare_data_dir(traj_no, root_data_dir='data'):
 
     csv_name = os.path.join(csv_dir, "{:06d}.csv".format(traj_no))
 
-    return screen_dir, csv_name
+    return screen_dir, states_dir, csv_name
 
 
 class DataGathering(object):
@@ -53,7 +58,7 @@ class DataGathering(object):
     done: whether the environemnt is done or not
     info: debug info
     """
-    def __init__(self):
+    def __init__(self, write_state=False):
         self.obs_t = []
         self.obs_next = []
         self.actions = []
@@ -61,6 +66,8 @@ class DataGathering(object):
         self.done = []
         self.info = []
         self.lst_nonzro_act_t = time.time()
+
+        self.write_state = write_state
 
         self.f = None
         self.reset_logging()
@@ -70,45 +77,52 @@ class DataGathering(object):
             self.f.close()
 
         self.traj_id = get_next_traj_id()
-        self.img_dir, csv_name = prepare_data_dir(self.traj_id)
+        self.img_dir, self.state_dir, csv_name = prepare_data_dir(self.traj_id)
         self.f = open(csv_name, 'wt')
-        self.logger = csv.DictWriter(self.f, fieldnames=('frame','reward','score','terminal', 'action', 'lifes'))
+        self.logger = csv.DictWriter(self.f, fieldnames=('frame', 'reward', 'score','terminal', 'action', 'lifes'))
         self.logger.writeheader()
 
-        self.img_id = 0
+        self.frame_id = 0
         self.score = 0
 
-    def save_data(self, obs_t, obs_next, action, rew, done, info):
+    def save_data(self, obs_t, obs_next, action, rew, done, info, env):
         if action != 0:
             self.lst_nonzro_act_t = time.time()
 
         # Only write data if there was any activity in last n seconds
         if time.time() - self.lst_nonzro_act_t < 5:
-            img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.img_id))
+            img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.frame_id))
             cv2.imwrite(img_path, cv2.cvtColor(obs_next, cv2.COLOR_RGB2BGR))
+
+            if self.write_state:
+                state_path = os.path.join(self.state_dir, "{:07d}.npy".format(self.frame_id))
+                state = env.env.clone_full_state()
+                np.save(state_path, state)
+
             self.score += rew
+
             self.logger.writerow({
-                'frame': self.img_id,
+                'frame': self.frame_id,
                 'reward': rew,
                 'score': self.score,
                 'terminal': done,
                 'action': action,
                 'lifes': info['ale.lives']
             })
-            self.img_id += 1
+            self.frame_id += 1
 
         # NOTE: If the framework is slow then this is the cause...
         self.f.flush()
 
         if done:
             self.reset_logging()
-            self.img_id += 1
+            self.frame_id += 1
 
 
 if __name__ == '__main__':
     env = gym.make("MontezumaRevengeNoFrameskip-v4")
 
-    data = DataGathering()
+    data = DataGathering(write_state=True)
 
     play.play(
         env,

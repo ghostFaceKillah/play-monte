@@ -3,9 +3,6 @@ import pygame
 
 from pygame.locals import VIDEORESIZE
 
-import utils
-
-
 def display_arr(screen, arr, video_size, transpose):
     arr_min, arr_max = arr.min(), arr.max()
     sh, sw = screen.get_height(), screen.get_width()
@@ -60,6 +57,7 @@ def play(env, transpose=True, fps=30, zoom=None, fullscreen=False, callback=None
             rew: reward that was received
             done: whether the environemnt is done or not
             info: debug info
+            env: the full environment (we mess up the nice architecture, but w/e)
     keys_to_action: dict: tuple(int) -> int or None
         Mapping from keys pressed to action performed.
         For example if pressed 'w' and space at the same time is supposed
@@ -108,7 +106,6 @@ def play(env, transpose=True, fps=30, zoom=None, fullscreen=False, callback=None
 
     clock = pygame.time.Clock()
 
-
     while running:
         if env_done:
             env_done = False
@@ -119,7 +116,7 @@ def play(env, transpose=True, fps=30, zoom=None, fullscreen=False, callback=None
                 prev_obs = obs
                 obs, rew, env_done, info = env.step(action)
                 if callback is not None:
-                    callback(prev_obs, obs, action, rew, env_done, info)
+                    callback(prev_obs, obs, action, rew, env_done, info, env)
             except KeyError as e:
                 print("Warning: ignoring illegal action '{}'".format(e))
         if obs is not None:
