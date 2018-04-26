@@ -1,23 +1,26 @@
-import csv
+# To see the scenario description go to "../../scenarios/README.md"
+
+from __future__ import print_function
+
 import cv2
-import gym
+import csv
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import time
 
-import play
-import utils
+import vizdoom
 
 
 def get_next_traj_id(root_data_dir='data'):
     if not os.path.exists(root_data_dir):
         return 0
-    
+
     relevant_files = [
         int(x) for x in os.listdir(os.path.join(root_data_dir, 'screens'))
         if x != '.DS_Store'
     ]
-    
+
     if len(relevant_files) == 0:
         return 0
     else:
@@ -79,7 +82,7 @@ class DataGathering(object):
         self.traj_id = get_next_traj_id()
         self.img_dir, self.state_dir, csv_name = prepare_data_dir(self.traj_id)
         self.f = open(csv_name, 'wt')
-        self.logger = csv.DictWriter(self.f, fieldnames=('frame', 'reward', 'score','terminal', 'action', 'lifes'))
+        self.logger = csv.DictWriter(self.f, fieldnames=('frame', 'reward', 'score','terminal', 'action'))
         self.logger.writeheader()
 
         self.frame_id = 0
@@ -102,46 +105,109 @@ class DataGathering(object):
             self.score += rew
             if abs(rew) > 0.001:
                 print("Reward!: {}".format(rew))
-		
+
             self.logger.writerow({
                 'frame': self.frame_id,
                 'reward': rew,
                 'score': self.score,
                 'terminal': done,
-                'action': action,
-                'lifes': info['ale.lives']
+                'action': action
             })
             self.frame_id += 1
 
         # NOTE: If the framework is slow then this is the cause...
         self.f.flush()
 
-        if done:
-            self.reset_logging()
-            self.frame_id += 1
+        # if done:
+        #     self.reset_logging()
+        #     self.frame_id += 1
+
+
+def get_configured_game():
+    game = vizdoom.DoomGame()
+
+    # Choose scenario config file you wish to watch.
+    # Don't load two configs cause the second will overrite the first one.
+    # Multiple config files are ok but combining these ones doesn't make much sense.
+
+    game.load_config("scenarios/my_way_home.cfg")
+    # game.load_config("scenarios/deathmatch.cfg")
+
+    # Enables freelook in engine
+    game.add_game_args("+freelook 1")
+
+    game.set_screen_resolution(vizdoom.ScreenResolution.RES_640X480)
+    # game.set_screen_resolution(vizdoom.ScreenResolution.RES_320X180)
+
+    game.set_window_visible(True)
+    game.set_mode(vizdoom.Mode.SPECTATOR)
+
+    game.init()
+
+    return game
+
+
+def show_gray(img):
+    plt.imshow(img, cmap=plt.get_cmap('gray'))
+    plt.show()
+
+
+def show_color(img):
+    plt.imshow(img)
+    plt.show()
+
+
+def run_episode(game):
+    data = DataGathering()
+    callback = data.save_data
+
+    game.new_episode()
+
+    while not game.is_episode_finished():
+        state = game.get_state()
+        img = state.screen_buffer
+
+        swapped_img = img.swapaxes(0, 1).swapaxes(1, 2)
+        reshaped_img = cv2.resize(swapped_img, (84, 84))
+        # gray_img = cv2.cvtColor(reshaped_img, cv2.COLOR_RGB2GRAY)
+
+        game.advance_action()
+        last_action = game.get_last_action()
+        reward = game.get_last_reward()
+
+        # We just hard take first action
+        stuff = [
+            last_action[i] * mult
+            for i, mult in enumerate([1, 2, 4])
+        ]
+
+        action = int(sum(stuff))
+
+        # print("State #" + str(state.number))
+        # print("Game variables: ", state.game_variables)
+        print("Stuff", stuff)
+        print("Action:", last_action)
+        print("Numerical action:", action)
+        # We do not catch all actions ...
+        # print("Reward:", reward)
+
+        callback(
+            obs_t=None,
+            obs_next=reshaped_img,
+            action=action,
+            rew=reward,
+            done=game.is_episode_finished(),
+            info={},
+            env=game
+        )
+
 
 
 if __name__ == '__main__':
-    # env_name = 'Alien'
-    # env_name = 'Asteroids'
-    # env_name = 'Atlantis'
-    # env_name = 'BattleZone'
-    # env_name = 'Gravitar'
-    # env_name = 'MontezumaRevenge'
-    env_name = 'Pitfall'
-    # env_name = 'PrivateEye'
-    # env_name = 'Qbert'
-    # env_name = 'UpNDown'
+    game = get_configured_game()
 
-    env = gym.make("{}NoFrameskip-v4".format(env_name))
-
-    data = DataGathering(write_state=True)
-
-    play.play(
-        env,
-        zoom=2,
-        fps=40,
-        callback=data.save_data,
-        # keys_to_action=utils.extended_keymap()
-    )
-
+    while True:
+        # try:
+        run_episode(game)
+        # except:
+        #   game.close()
