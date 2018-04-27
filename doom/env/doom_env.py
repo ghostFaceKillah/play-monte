@@ -9,13 +9,27 @@ import gym
 from gym import spaces, error
 from gym.utils import seeding
 
-try:
-    import doom_py
-    from doom_py import DoomGame, Mode, Button, GameVariable, ScreenFormat, ScreenResolution, Loader
-    from doom_py.vizdoom import ViZDoomUnexpectedExitException, ViZDoomErrorException
-except ImportError as e:
-    raise gym.error.DependencyNotInstalled("{}. (HINT: you can install Doom dependencies " +
-                                           "with 'pip install doom_py.)'".format(e))
+import vizdoom
+from vizdoom import DoomGame, Mode, ScreenResolution, ViZDoomUnexpectedExitException, ViZDoomErrorException
+
+
+class Loader():
+    """
+    This class converts file name to full paths to be imported
+    by the DoomGame
+    """
+    def get_vizdoom_path(self):
+        package_directory = os.path.dirname(os.path.abspath(vizdoom.__file__))
+        return os.path.join(package_directory, 'vizdoom')
+
+    def get_freedoom_path(self):
+        package_directory = os.path.dirname(os.path.abspath(vizdoom.__file__))
+        return os.path.join(package_directory, 'freedoom2.wad')
+
+    def get_scenario_path(self, name):
+        package_directory = os.path.dirname(os.path.abspath(vizdoom.__file__))
+        return os.path.join(package_directory, 'scenarios/{}'.format(name))
+
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +56,7 @@ DOOM_SETTINGS = [
     ['take_cover.cfg', 'take_cover.wad', 'map01', 5, [10, 11], 0, 750],                          # 7 - TakeCover
     ['deathmatch.cfg', 'deathmatch.wad', '', 5, [x for x in range(NUM_ACTIONS) if x != 33], 0, 20] # 8 - Deathmatch
 ]
+
 
 # Singleton pattern
 class DoomLock:
@@ -134,7 +149,7 @@ class DoomEnv(gym.Env):
                     'singleton lock in memory.')
             self._start_episode()
             self.is_initialized = True
-            return self.game.get_state().image_buffer.copy()
+            return self.game.get_state().screen_buffer.copy()
 
         # Human mode
         else:
@@ -202,23 +217,23 @@ class DoomEnv(gym.Env):
                 return np.zeros(shape=self.observation_space.shape, dtype=np.uint8), reward, is_finished, info
             else:
                 is_finished = False
-                return state.image_buffer.copy(), reward, is_finished, info
+                return state.screen_buffer.copy(), reward, is_finished, info
 
-        except doom_py.vizdoom.ViZDoomIsNotRunningException:
+        except vizdoom.vizdoom.ViZDoomIsNotRunningException:
             return np.zeros(shape=self.observation_space.shape, dtype=np.uint8), 0, True, {}
 
     def _reset(self):
         if self.is_initialized and not self._closed:
             self._start_episode()
-            image_buffer = self.game.get_state().image_buffer
-            if image_buffer is None:
+            screen_buffer = self.game.get_state().screen_buffer
+            if screen_buffer is None:
                 raise error.Error(
                     'VizDoom incorrectly initiated. This is likely caused by a missing multiprocessing lock. ' +
                     'To run VizDoom across multiple processes, you need to pass a lock when you configure the env ' +
                     '[e.g. env.configure(lock=my_multiprocessing_lock)], or create and close an env ' +
                     'before starting your processes [e.g. env = gym.make("DoomBasic-v0"); env.close()] to cache a ' +
                     'singleton lock in memory.')
-            return image_buffer.copy()
+            return screen_buffer.copy()
         else:
             return self._load_level()
 
@@ -232,7 +247,7 @@ class DoomEnv(gym.Env):
             if 'human' == mode and self.no_render:
                 return
             state = self.game.get_state()
-            img = state.image_buffer
+            img = state.screen_buffer
             # VizDoom returns None if the episode is finished, let's make it
             # an empty image so the recorder doesn't stop
             if img is None:
@@ -244,7 +259,7 @@ class DoomEnv(gym.Env):
                 if self.viewer is None:
                     self.viewer = rendering.SimpleImageViewer()
                 self.viewer.imshow(img)
-        except doom_py.vizdoom.ViZDoomIsNotRunningException:
+        except vizdoom.vizdoom.ViZDoomIsNotRunningException:
             pass  # Doom has been closed
 
     def _close(self):
@@ -420,7 +435,7 @@ class MetaDoomEnv(DoomEnv):
 
         if self.is_initialized and not self._closed and self.previous_level == self.level:
             self._start_episode()
-            return self.game.get_state().image_buffer.copy()
+            return self.game.get_state().screen_buffer.copy()
         else:
             return self._load_level()
 
