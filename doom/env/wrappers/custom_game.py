@@ -2,14 +2,10 @@ import os
 import types
 import gym
 
-try:
-    import doom_py
-    from doom_py import DoomGame, Mode, Button, GameVariable, ScreenFormat, ScreenResolution, Loader
-except ImportError as e:
-    raise gym.error.DependencyNotInstalled("{}. (HINT: you can install Doom dependencies " +
-                                           "with 'pip install doom_py.)'".format(e))
+from vizdoom import ScreenResolution
 
 __all__ = [ 'CustomGame' ]
+
 
 def CustomGame():
 

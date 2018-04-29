@@ -11,24 +11,7 @@ from gym.utils import seeding
 
 import vizdoom
 from vizdoom import DoomGame, Mode, ScreenResolution, ViZDoomUnexpectedExitException, ViZDoomErrorException
-
-
-class Loader():
-    """
-    This class converts file name to full paths to be imported
-    by the DoomGame
-    """
-    def get_vizdoom_path(self):
-        package_directory = os.path.dirname(os.path.abspath(vizdoom.__file__))
-        return os.path.join(package_directory, 'vizdoom')
-
-    def get_freedoom_path(self):
-        package_directory = os.path.dirname(os.path.abspath(vizdoom.__file__))
-        return os.path.join(package_directory, 'freedoom2.wad')
-
-    def get_scenario_path(self, name):
-        package_directory = os.path.dirname(os.path.abspath(vizdoom.__file__))
-        return os.path.join(package_directory, 'scenarios/{}'.format(name))
+from doom.env.loader import Loader
 
 
 logger = logging.getLogger(__name__)
@@ -86,13 +69,14 @@ class DoomEnv(gym.Env):
         self.is_initialized = False                 # Indicates that reset() has been called
         self.curr_seed = 0
         self.lock = (DoomLock()).get_lock()
-        self.action_space = spaces.Discrete(43)
+        # self.action_space = spaces.Discrete(43)   # used to be in the old code
+        self.action_space = spaces.MultiBinary(NUM_ACTIONS)
         self.allowed_actions = list(range(NUM_ACTIONS))
         self.screen_height = 480
         self.screen_width = 640
         self.screen_resolution = ScreenResolution.RES_640X480
         self.observation_space = spaces.Box(low=0, high=255, shape=(self.screen_height, self.screen_width, 3))
-        self._seed()
+        self.seed()
         self._configure()
 
     def _configure(self, lock=None, **kwargs):
@@ -189,14 +173,15 @@ class DoomEnv(gym.Env):
         print('Done')
         return
 
-    def _step(self, action):
-        # if NUM_ACTIONS != len(action):
-        #     logger.warn('Doom action list must contain %d items. Padding missing items with 0' % NUM_ACTIONS)
-        #     old_action = action
-        #     action = [0] * NUM_ACTIONS
-        #     for i in range(len(old_action)):
-        #         action[i] = old_action[i]
+    def step(self, action):
+        """
+        action: a number in range 0..42
 
+        We get this from the simontudo and his predecessors, it transforms
+        a numeric action from space Discrete(43) into a indicator action .
+
+        However, we can only press one button at the same time.
+        """
         # Convert to array
         action_arr = np.zeros(NUM_ACTIONS, dtype=int)
         action_arr[action] = 1
@@ -222,7 +207,32 @@ class DoomEnv(gym.Env):
         except vizdoom.vizdoom.ViZDoomIsNotRunningException:
             return np.zeros(shape=self.observation_space.shape, dtype=np.uint8), 0, True, {}
 
-    def _reset(self):
+    def new_step(self, action):
+        """
+        action: iterable of length 43, contains indicators of whether given buttons was pressed.
+
+        Written by me.
+        """
+        list_action = [int(x) for x in action]
+
+        try:
+            reward = self.game.make_action(list_action)
+            state = self.game.get_state()
+            info = self._get_game_variables(state.game_variables)
+            info["TOTAL_REWARD"] = round(self.game.get_total_reward(), 4)
+
+            if self.game.is_episode_finished():
+                is_finished = True
+                return np.zeros(shape=self.observation_space.shape, dtype=np.uint8), reward, is_finished, info
+            else:
+                is_finished = False
+                return state.screen_buffer.copy(), reward, is_finished, info
+
+
+        except vizdoom.vizdoom.ViZDoomIsNotRunningException:
+            return np.zeros(shape=self.observation_space.shape, dtype=np.uint8), 0, True, {}
+
+    def reset(self):
         if self.is_initialized and not self._closed:
             self._start_episode()
             screen_buffer = self.game.get_state().screen_buffer
@@ -237,7 +247,7 @@ class DoomEnv(gym.Env):
         else:
             return self._load_level()
 
-    def _render(self, mode='human', close=False):
+    def render(self, mode='human', close=False):
         if close:
             if self.viewer is not None:
                 self.viewer.close()
@@ -262,12 +272,12 @@ class DoomEnv(gym.Env):
         except vizdoom.vizdoom.ViZDoomIsNotRunningException:
             pass  # Doom has been closed
 
-    def _close(self):
+    def close(self):
         # Lock required for VizDoom to close processes properly
         with self.lock:
             self.game.close()
 
-    def _seed(self, seed=None):
+    def seed(self, seed=None):
         self.curr_seed = seeding.hash_seed(seed) % 2 ** 32
         return [self.curr_seed]
 

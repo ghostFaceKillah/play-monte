@@ -4,10 +4,8 @@ import gym
 
 if __name__ == '__main__':
     env = some_env.DoomHealthGatheringEnv()
-    env._reset()
+    # env._play_human_mode()
+
+    env.reset()
     for i in range(10):
-        env._step(env.action_space.sample())
-
-    print("ww")
-
-
+        env.step(env.action_space.sample())
