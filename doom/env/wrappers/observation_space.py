@@ -24,9 +24,7 @@ def SetResolution(target_resolution):
             parts = target_resolution.lower().split('x')
             width = int(parts[0])
             height = int(parts[1])
-            screen_res = __import__('doom_py')
-            screen_res = getattr(screen_res, 'ScreenResolution')
-            screen_res = getattr(screen_res, 'RES_{}X{}'.format(width, height))
+            screen_res = getattr(ScreenResolution, 'RES_{}X{}'.format(width, height))
             self.screen_width, self.screen_height, self.unwrapped.screen_resolution = width, height, screen_res
             self.unwrapped.observation_space = gym.spaces.Box(low=0, high=255, shape=(self.screen_height, self.screen_width, 3))
             self.observation_space = self.unwrapped.observation_space

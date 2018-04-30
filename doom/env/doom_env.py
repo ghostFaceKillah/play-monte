@@ -29,15 +29,15 @@ TARGET_SCORE = 6
 
 # Format (config, scenario, map, difficulty, actions, min, target)
 DOOM_SETTINGS = [
-    ['basic.cfg', 'basic.wad', 'map01', 5, [0, 10, 11], -485, 10],                               # 0 - Basic
-    ['deadly_corridor.cfg', 'deadly_corridor.wad', '', 1, [0, 10, 11, 13, 14, 15], -120, 1000],  # 1 - Corridor
-    ['defend_the_center.cfg', 'defend_the_center.wad', '', 5, [0, 14, 15], -1, 10],              # 2 - DefendCenter
-    ['defend_the_line.cfg', 'defend_the_line.wad', '', 5, [0, 14, 15], -1, 15],                  # 3 - DefendLine
-    ['health_gathering.cfg', 'health_gathering.wad', 'map01', 5, [13, 14, 15], 0, 1000],         # 4 - HealthGathering
-    ['my_way_home.cfg', 'my_way_home.wad', '', 5, [13, 14, 15], -0.22, 0.5],                     # 5 - MyWayHome
-    ['predict_position.cfg', 'predict_position.wad', 'map01', 3, [0, 14, 15], -0.075, 0.5],      # 6 - PredictPosition
-    ['take_cover.cfg', 'take_cover.wad', 'map01', 5, [10, 11], 0, 750],                          # 7 - TakeCover
-    ['deathmatch.cfg', 'deathmatch.wad', '', 5, [x for x in range(NUM_ACTIONS) if x != 33], 0, 20] # 8 - Deathmatch
+    ['basic.cfg', 'basic.wad', 'map01', 5, [0, 10, 11], -485, 10],                                  # 0 - Basic
+    ['deadly_corridor.cfg', 'deadly_corridor.wad', '', 1, [0, 10, 11, 13, 14, 15], -120, 1000],     # 1 - Corridor
+    ['defend_the_center.cfg', 'defend_the_center.wad', '', 5, [0, 14, 15], -1, 10],                 # 2 - DefendCenter
+    ['defend_the_line.cfg', 'defend_the_line.wad', '', 5, [0, 14, 15], -1, 15],                     # 3 - DefendLine
+    ['health_gathering.cfg', 'health_gathering.wad', 'map01', 5, [13, 14, 15], 0, 1000],            # 4 - HealthGathering
+    ['my_way_home.cfg', 'my_way_home.wad', '', 5, [13, 14, 15], -0.22, 0.5],                        # 5 - MyWayHome
+    ['predict_position.cfg', 'predict_position.wad', 'map01', 3, [0, 14, 15], -0.075, 0.5],         # 6 - PredictPosition
+    ['take_cover.cfg', 'take_cover.wad', 'map01', 5, [10, 11], 0, 750],                             # 7 - TakeCover
+    ['deathmatch.cfg', 'deathmatch.wad', '', 5, [x for x in range(NUM_ACTIONS) if x != 33], 0, 20]  # 8 - Deathmatch
 ]
 
 
@@ -194,13 +194,14 @@ class DoomEnv(gym.Env):
         try:
             reward = self.game.make_action(list_action)
             state = self.game.get_state()
-            info = self._get_game_variables(state.game_variables)
-            info["TOTAL_REWARD"] = round(self.game.get_total_reward(), 4)
 
             if self.game.is_episode_finished():
+                info = {"TOTAL_REWARD": round(self.game.get_total_reward(), 4)}
                 is_finished = True
                 return np.zeros(shape=self.observation_space.shape, dtype=np.uint8), reward, is_finished, info
             else:
+                info = self._get_game_variables(state.game_variables)
+                info["TOTAL_REWARD"] = round(self.game.get_total_reward(), 4)
                 is_finished = False
                 return state.screen_buffer.copy(), reward, is_finished, info
 
@@ -270,6 +271,8 @@ class DoomEnv(gym.Env):
                     self.viewer = rendering.SimpleImageViewer()
                 self.viewer.imshow(img)
         except vizdoom.vizdoom.ViZDoomIsNotRunningException:
+            pass  # Doom has been closed
+        except AttributeError:
             pass  # Doom has been closed
 
     def close(self):
