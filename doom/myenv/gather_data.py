@@ -168,14 +168,15 @@ def run_episode(game):
         img = state.screen_buffer
 
         swapped_img = img.swapaxes(0, 1).swapaxes(1, 2)
-        reshaped_img = cv2.resize(swapped_img, (84, 84))
+        reshaped_img = cv2.resize(swapped_img, (84, 84), interpolation=cv2.INTER_AREA)
         # gray_img = cv2.cvtColor(reshaped_img, cv2.COLOR_RGB2GRAY)
 
         game.advance_action()
         last_action = game.get_last_action()
         reward = game.get_last_reward()
 
-        # We just hard take first action
+        # Encode action combination as binary number
+        # Should we get action meanings?
         stuff = [
             last_action[i] * mult
             for i, mult in enumerate([1, 2, 4])
@@ -200,7 +201,6 @@ def run_episode(game):
             info={},
             env=game
         )
-
 
 
 if __name__ == '__main__':
