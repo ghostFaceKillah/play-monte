@@ -2,17 +2,21 @@
 
 from __future__ import print_function
 
-import cv2
 import csv
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import time
-
+import uuid
 import vizdoom
 
 
 def get_next_traj_id(root_data_dir='data'):
+    return str(uuid.uuid1())
+
+
+def get_next_traj_number(root_data_dir='data'):
     if not os.path.exists(root_data_dir):
         return 0
 
@@ -27,9 +31,9 @@ def get_next_traj_id(root_data_dir='data'):
         return 1 + max(relevant_files)
 
 
-def prepare_data_dir(traj_no, root_data_dir='data'):
-    screen_dir = os.path.join(root_data_dir, 'screens', "{:06d}".format(traj_no))
-    states_dir = os.path.join(root_data_dir, 'states', "{:06d}".format(traj_no))
+def prepare_data_dir(traj_name, root_data_dir='data'):
+    screen_dir = os.path.join(root_data_dir, 'screens', traj_name)
+    states_dir = os.path.join(root_data_dir, 'states', traj_name)
 
     if not os.path.exists(screen_dir):
         os.makedirs(screen_dir)
@@ -42,7 +46,7 @@ def prepare_data_dir(traj_no, root_data_dir='data'):
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
 
-    csv_name = os.path.join(csv_dir, "{:06d}.csv".format(traj_no))
+    csv_name = os.path.join(csv_dir, "{}.csv".format(traj_name))
 
     return screen_dir, states_dir, csv_name
 
