@@ -127,3 +127,28 @@ def play(env, transpose=True, fps=30, zoom=None, fullscreen=False, callback=None
         env.render()
         clock.tick(fps)
     pygame.quit()
+
+
+if __name__ == '__main__':
+    # env_name = 'Alien'
+    # env_name = 'Asteroids'
+    # env_name = 'Atlantis'
+    # env_name = 'BattleZone'
+    # env_name = 'Gravitar'
+    # env_name = 'MontezumaRevenge'
+    env_name = 'Pitfall'
+    # env_name = 'PrivateEye'
+    # env_name = 'Qbert'
+    # env_name = 'UpNDown'
+
+    env = gym.make("{}NoFrameskip-v4".format(env_name))
+
+    # data = DataGathering(write_state=True)
+
+    play(
+        env,
+        zoom=2,
+        fps=40,
+        # callback=data.save_data,
+        # keys_to_action=utils.extended_keymap()
+    )

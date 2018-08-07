@@ -1,11 +1,81 @@
+import csv
+import cv2
 import gym
+import numpy as np
+import os
 import pygame
+import time
 
-from pygame.locals import VIDEORESIZE
+import utils
 
 
-def get_keys(relevant_keys):
-    pressed_keys = []
+class DataGatheringWithReset(object):
+    """
+    Gathers tuples, observation, action, reward, done, emulator state
+
+    Offers a call to get back a state that was n states ago.
+    """
+    def __init__(self, write_state=False):
+
+        self.should_write_state = write_state
+        self.new_trajectory()
+
+        self.f = None
+
+    def clear_buffers_and_counters(self):
+
+        self.obs_t = []
+        self.obs_next = []
+        self.actions = []
+        self.rewards = []
+        self.state = [] # emulator state
+        self.done = []
+        self.info = []
+
+        self.frame_id = 0
+        self.score = 0
+
+    def new_trajectory(self):
+        """
+        Prepare writing filepath
+        Flush buffers to prepare for collection of new data.
+        """
+
+        self.clear_buffers_and_counters()
+        self.traj_id = utils.get_next_traj_id()
+        self.img_dir, self.state_dir, self.fname = utils.prepare_data_dir(self.traj_id)
+
+    def save_trajectory(self):
+        pass
+
+    def write_state(self, env):
+        state_path = os.path.join(self.state_dir, "{:07d}.npy".format(self.frame_id))
+        state = env.env.clone_full_state()
+        np.save(state_path, state)
+
+    def write_img(self, obs_next):
+        img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.frame_id))
+        cv2.imwrite(img_path, cv2.cvtColor(obs_next, cv2.COLOR_RGB2BGR))
+
+    def gather_data(self, obs_t, obs_next, action, rew, done, info, env):
+        self.lst_nonzro_act_t = time.time()
+
+        self.write_img(obs_next)
+
+        if self.should_write_state:
+            self.write_state(env)
+
+        self.score += rew
+        if abs(rew) > 0.001:
+            print("Reward!: {}".format(rew))
+
+        self.frame_id += 1
+
+        if done:
+            self.save_trajectory()
+            self.new_trajectory()
+
+def get_keys(relevant_keys, pressed_keys, running):
     # process pygame events
     for event in pygame.event.get():
         # test events, set key states
@@ -23,28 +93,29 @@ def get_keys(relevant_keys):
     return pressed_keys, running
 
 
-def play(env, fps=30, callback=None, keys_to_action=None):
+def default_key_to_action_mapper(env):
 
-    obs_s = env.observation_space
-    assert type(obs_s) == gym.spaces.box.Box
-    assert len(obs_s.shape) == 2 or (len(obs_s.shape) == 3 and obs_s.shape[2] in [1,3])
+    if hasattr(env, 'get_keys_to_action'):
+        keys_to_action = env.get_keys_to_action()
+    elif hasattr(env.unwrapped, 'get_keys_to_action'):
+        keys_to_action = env.unwrapped.get_keys_to_action()
+    else:
+        assert False, env.spec.id + " does not have explicit key to action mapping, " + \
+                      "please specify one manually"
 
-    # We need to make some kind of mapper from keys to action
-
-    # Some environments have mapper from keys to action,
-    # for example atari ones. We could potentially use it
-
-    if keys_to_action is None:
-        if hasattr(env, 'get_keys_to_action'):
-            keys_to_action = env.get_keys_to_action()
-        elif hasattr(env.unwrapped, 'get_keys_to_action'):
-            keys_to_action = env.unwrapped.get_keys_to_action()
-        else:
-            assert False, env.spec.id + " does not have explicit key to action mapping, " + \
-                          "please specify one manually"
     relevant_keys = set(sum(map(list, keys_to_action.keys()),[]))
 
-    pressed_keys = []
+    def mapper(pressed_keys):
+        return keys_to_action[tuple(sorted(pressed_keys))]
+
+    return mapper, relevant_keys
+
+
+def play(env, fps=30, callback=None, keys_to_action_mapper=None, relevant_keys=None):
+    if keys_to_action_mapper is None:
+        keys_to_action_mapper, relevant_keys = default_key_to_action_mapper(env)
+
+    pressed_keys = []  # Holds state between env steps
     running = True
     env_done = True
     obs = None
@@ -57,18 +128,39 @@ def play(env, fps=30, callback=None, keys_to_action=None):
             env_done = False
             obs = env.reset()
         else:
-            action = keys_to_action[tuple(sorted(pressed_keys))]
+            action = keys_to_action_mapper(pressed_keys)
             prev_obs = obs
             obs, rew, env_done, info = env.step(action)
 
             if callback is not None:
                 callback(prev_obs, obs, action, rew, env_done, info, env)
 
-            # except KeyError as e:
-            #     print("Warning: ignoring illegal action '{}'".format(e))
-
-        pressed_keys, running = get_keys(relevant_keys)
+        pressed_keys, running = get_keys(relevant_keys, pressed_keys, running)
 
         env.render()
         clock.tick(fps)
     pygame.quit()
+
+
+if __name__ == '__main__':
+    # env_name = 'Alien'
+    # env_name = 'Asteroids'
+    # env_name = 'Atlantis'
+    # env_name = 'BattleZone'
+    # env_name = 'Gravitar'
+    # env_name = 'MontezumaRevenge'
+    env_name = 'Pitfall'
+    # env_name = 'PrivateEye'
+    # env_name = 'Qbert'
+    # env_name = 'UpNDown'
+
+    env = gym.make("{}NoFrameskip-v4".format(env_name))
+
+    # data = DataGathering(write_state=True)
+
+    play(
+        env,
+        fps=40,
+        # callback=data.save_data,
+        # keys_to_action=utils.extended_keymap()
+    )

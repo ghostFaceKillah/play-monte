@@ -90,3 +90,38 @@ def mkdir_p(dir):
     """ Check if directory exists and if not, make it."""
     if not os.path.exists(dir):
         os.makedirs(dir)
+
+
+def prepare_data_dir(traj_no, root_data_dir='data'):
+    screen_dir = os.path.join(root_data_dir, 'screens', "{:06d}".format(traj_no))
+    states_dir = os.path.join(root_data_dir, 'states', "{:06d}".format(traj_no))
+
+    if not os.path.exists(screen_dir):
+        os.makedirs(screen_dir)
+
+    if not os.path.exists(states_dir):
+        os.makedirs(states_dir)
+
+    csv_dir = os.path.join(root_data_dir, 'trajectories')
+
+    if not os.path.exists(csv_dir):
+        os.makedirs(csv_dir)
+
+    csv_name = os.path.join(csv_dir, "{:06d}.csv".format(traj_no))
+
+    return screen_dir, states_dir, csv_name
+
+
+def get_next_traj_id(root_data_dir='data'):
+    if not os.path.exists(root_data_dir):
+        return 0
+
+    relevant_files = [
+        int(x) for x in os.listdir(os.path.join(root_data_dir, 'screens'))
+        if x != '.DS_Store'
+    ]
+
+    if len(relevant_files) == 0:
+        return 0
+    else:
+        return 1 + max(relevant_files)
