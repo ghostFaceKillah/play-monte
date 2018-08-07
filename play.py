@@ -85,26 +85,12 @@ def play(env, transpose=True, fps=30, zoom=None, fullscreen=False, callback=None
                           "please specify one manually"
     relevant_keys = set(sum(map(list, keys_to_action.keys()),[]))
 
-    if transpose:
-        video_size = env.observation_space.shape[1], env.observation_space.shape[0]
-    else:
-        video_size = env.observation_space.shape[0], env.observation_space.shape[1]
-
-
     pressed_keys = []
     running = True
     env_done = True
 
-    if fullscreen:
-        screen = pygame.display.set_mode((0,0),pygame.FULLSCREEN)
-        zoom = float(pygame.display.Info().current_h) / float(video_size[1])
-        video_size = int(video_size[0] * zoom), int(video_size[1] * zoom)
-    else:
-        if zoom is not None:
-            video_size = int(video_size[0] * zoom), int(video_size[1] * zoom)
-        screen = pygame.display.set_mode(video_size)
-
     clock = pygame.time.Clock()
+    pygame.display.set_mode((1, 1))
 
     while running:
         if env_done:
@@ -119,12 +105,6 @@ def play(env, transpose=True, fps=30, zoom=None, fullscreen=False, callback=None
                     callback(prev_obs, obs, action, rew, env_done, info, env)
             except KeyError as e:
                 print("Warning: ignoring illegal action '{}'".format(e))
-        if obs is not None:
-            if len(obs.shape) == 2:
-                obs = obs[:, :, None]
-            if obs.shape[2] == 1:
-                obs = obs.repeat(3, axis=2)
-            display_arr(screen, obs, transpose=transpose, video_size=video_size)
 
         # process pygame events
         for event in pygame.event.get():
@@ -144,6 +124,6 @@ def play(env, transpose=True, fps=30, zoom=None, fullscreen=False, callback=None
                 screen = pygame.display.set_mode(video_size)
                 print(video_size)
 
-        pygame.display.flip()
+        env.render()
         clock.tick(fps)
     pygame.quit()
