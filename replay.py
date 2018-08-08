@@ -75,7 +75,11 @@ class DataGatheringWithReset(object):
             self.save_trajectory()
             self.new_trajectory()
 
+
 def get_keys(relevant_keys, pressed_keys, running):
+    """
+    Get all pygame events and record presses of relevant keys.
+    """
     # process pygame events
     for event in pygame.event.get():
         # test events, set key states
@@ -94,6 +98,11 @@ def get_keys(relevant_keys, pressed_keys, running):
 
 
 def default_key_to_action_mapper(env):
+    """
+    Get a default mapper action list : [int] -> action: int.
+    And list of keys that are relevant to the given atari env.
+    This mapping is given by Atari env, won't work with anything else.
+    """
 
     if hasattr(env, 'get_keys_to_action'):
         keys_to_action = env.get_keys_to_action()
@@ -112,6 +121,7 @@ def default_key_to_action_mapper(env):
 
 
 def play(env, fps=30, callback=None, keys_to_action_mapper=None, relevant_keys=None):
+
     if keys_to_action_mapper is None:
         keys_to_action_mapper, relevant_keys = default_key_to_action_mapper(env)
 
@@ -139,6 +149,7 @@ def play(env, fps=30, callback=None, keys_to_action_mapper=None, relevant_keys=N
 
         env.render()
         clock.tick(fps)
+
     pygame.quit()
 
 
@@ -158,9 +169,11 @@ if __name__ == '__main__':
 
     # data = DataGathering(write_state=True)
 
+    data = DataGatheringWithReset(write_state=True)
+
     play(
         env,
         fps=40,
-        # callback=data.save_data,
+        callback=data.gather_data,
         # keys_to_action=utils.extended_keymap()
     )
