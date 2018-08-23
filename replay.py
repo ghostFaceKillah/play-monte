@@ -1,8 +1,8 @@
-import csv
 import cv2
 import gym
 import numpy as np
 import os
+import pandas as pd
 import pygame
 import time
 
@@ -11,20 +11,16 @@ import utils
 
 class DataGatheringWithReset(object):
     """
-    Gathers tuples, observation, action, reward, done, emulator state
+    Gathers tuples, observation, action, reward, done, emulator state.
 
     Offers a call to get back a state that was n states ago.
     """
-    def __init__(self, write_state=False):
-
-        self.should_write_state = write_state
+    def __init__(self):
         self.new_trajectory()
 
-        self.f = None
+    def _clear_buffers_and_counters(self):
+        """ Clear buffers and counters to prepare for writing of a new trajectory. """
 
-    def clear_buffers_and_counters(self):
-
-        self.obs_t = []
         self.obs_next = []
         self.actions = []
         self.rewards = []
@@ -32,48 +28,94 @@ class DataGatheringWithReset(object):
         self.done = []
         self.info = []
 
-        self.frame_id = 0
-        self.score = 0
-
     def new_trajectory(self):
         """
-        Prepare writing filepath
+        Prepare for recording new trajectory.
+        Prepare filepaths.
         Flush buffers to prepare for collection of new data.
         """
 
-        self.clear_buffers_and_counters()
+        self._clear_buffers_and_counters()
         self.traj_id = utils.get_next_traj_id()
-        self.img_dir, self.state_dir, self.fname = utils.prepare_data_dir(self.traj_id)
+        self.img_dir, self.state_dir, self.traj_csv_fname = utils.prepare_data_dir(self.traj_id)
 
-    def save_trajectory(self):
-        pass
+    def _get_state_path(self, frame_id):
+        state_path = os.path.join(self.state_dir, "{:07d}.npy".format(frame_id))
+        return state_path
 
-    def write_state(self, env):
-        state_path = os.path.join(self.state_dir, "{:07d}.npy".format(self.frame_id))
-        state = env.env.clone_full_state()
+    def _write_state(self, state, frame_id):
+        state_path = self._get_state_path(frame_id)
         np.save(state_path, state)
 
-    def write_img(self, obs_next):
-        img_path = os.path.join(self.img_dir, "{:07d}.png".format(self.frame_id))
+    def get_img_path(self, frame_id):
+        return os.path.join(self.img_dir, "{:07d}.png".format(frame_id))
+
+    def _write_img(self, obs_next, frame_id):
+        """ Save an image to dr"""
+        img_path = self.get_img_path(frame_id)
         cv2.imwrite(img_path, cv2.cvtColor(obs_next, cv2.COLOR_RGB2BGR))
 
-    def gather_data(self, obs_t, obs_next, action, rew, done, info, env):
-        self.lst_nonzro_act_t = time.time()
+    def save_trajectory(self):
+        """
+        Save the whole trajectory to the drive.
+        0) Save the trajectory data csv to the drive
+        1) Save all pictures
+        2) Save all emulator states
+        """
 
-        self.write_img(obs_next)
+        no_frames = len(self.actions)
 
-        if self.should_write_state:
-            self.write_state(env)
+        df = pd.DataFrame({
+            'frame': range(no_frames),
+            'reward': self.rewards,
+            # score
+            'terminal': self.done,
+            'action': self.actions,
+            'lifes': [i['ale.lives'] for i in self.info]
+        })
+        df['score'] = df.reward.cumsum()
+        df = df[['frame', 'reward', 'score', 'terminal', 'action', 'lifes']]
+        df.to_csv(self.traj_csv_fname, index=False)
 
-        self.score += rew
+        for i in range(no_frames):
+            self._write_img(self.obs_next[i], i)
+            self._write_state(self.state[i], i)
+
+    def _extract_state(self, env):
+        """ Pull out state out of the enironment"""
+        return env.env.clone_full_state()
+
+    def _log_transition(self, obs_t, obs_next, action, rew, done, info, env):
+        """ Maybe we want to log the transition in some way. Then log it here. """
         if abs(rew) > 0.001:
             print("Reward!: {}".format(rew))
 
-        self.frame_id += 1
+    def process_transition(self, obs_t, obs_next, action, rew, done, info, env):
+        state = self._extract_state(env)
 
-        if done:
-            self.save_trajectory()
-            self.new_trajectory()
+        # Save data
+        self.obs_next.append(obs_next)
+        self.actions.append(action)
+        self.rewards.append(rew)
+        self.state.append(state)
+        self.done.append(done)
+        self.info.append(info)
+
+        self._log_transition(obs_t, obs_next, action, rew, done, info, env)
+
+    def rewind(self, n_back):
+        """ Rewind time back by n_back steps. """
+        idx = max(0, len(self.actions) - n_back)
+        state = self.state[idx]
+
+        self.obs_next = self.obs_next[:idx]
+        self.actions = self.actions[:idx]
+        self.rewards = self.rewards[:idx]
+        self.state = self.state[:idx]
+        self.done = self.done[:idx]
+        self.info = self.info[:idx]
+
+        return state
 
 
 def get_keys(relevant_keys, pressed_keys, running):
@@ -84,13 +126,11 @@ def get_keys(relevant_keys, pressed_keys, running):
     for event in pygame.event.get():
         # test events, set key states
         if event.type == pygame.KEYDOWN:
-            if event.key in relevant_keys:
-                pressed_keys.append(event.key)
-            elif event.key == 27:
+            pressed_keys.append(event.key)
+            if event.key == 27:
                 running = False
         elif event.type == pygame.KEYUP:
-            if event.key in relevant_keys:
-                pressed_keys.remove(event.key)
+            pressed_keys.remove(event.key)
         elif event.type == pygame.QUIT:
             running = False
 
@@ -112,40 +152,84 @@ def default_key_to_action_mapper(env):
         assert False, env.spec.id + " does not have explicit key to action mapping, " + \
                       "please specify one manually"
 
-    relevant_keys = set(sum(map(list, keys_to_action.keys()),[]))
+    relevant_keys = set(sum(map(list, keys_to_action.keys()), []))
 
     def mapper(pressed_keys):
-        return keys_to_action[tuple(sorted(pressed_keys))]
+        action_meta = tuple(sorted(key for key in pressed_keys if key in relevant_keys))
+        if action_meta in keys_to_action:
+            return keys_to_action[action_meta]
+        else:
+            return 0
 
-    return mapper, relevant_keys
+    return mapper
 
 
-def play(env, fps=30, callback=None, keys_to_action_mapper=None, relevant_keys=None):
+def check_if_rewind_or_save(keys):
+    rewind = False
+    save = False
+
+    for key in keys:
+        if key == pygame.K_s:
+            save = True
+        if key == pygame.K_r:
+            rewind = True
+
+    return rewind, save
+
+
+def play(env, fps=30, keys_to_action_mapper=None, relevant_keys=None):
+
+    data = DataGatheringWithReset()
 
     if keys_to_action_mapper is None:
-        keys_to_action_mapper, relevant_keys = default_key_to_action_mapper(env)
+        keys_to_action_mapper = default_key_to_action_mapper(env)
 
     pressed_keys = []  # Holds state between env steps
     running = True
-    env_done = True
-    obs = None
+    env_done = False
+    obs = env.reset()
+    done_time = 0
+    save = False
+    rewind = False
+    process_rewind = True
 
     clock = pygame.time.Clock()
     pygame.display.set_mode((1, 1))
 
     while running:
         if env_done:
-            env_done = False
-            obs = env.reset()
+            timeout = time.time() - done_time > 5
+
+            if save or timeout:
+                data.save_trajectory()
+                data.new_trajectory()
+
+                env_done = False
+                obs = env.reset()
+
         else:
             action = keys_to_action_mapper(pressed_keys)
             prev_obs = obs
             obs, rew, env_done, info = env.step(action)
 
-            if callback is not None:
-                callback(prev_obs, obs, action, rew, env_done, info, env)
+            data.process_transition(prev_obs, obs, action, rew, env_done, info, env)
+
+            # Perhaps reset data accumulators
+            if env_done:
+                print("(s)ave or (r)ewind environment")
+                done_time = time.time()
+
+        if rewind and process_rewind:
+            prev_env_state = data.rewind(fps)
+            env.env.restore_full_state(prev_env_state)
+            env_done = False
+            process_rewind = False
+
+        if not rewind:
+            process_rewind = True
 
         pressed_keys, running = get_keys(relevant_keys, pressed_keys, running)
+        rewind, save = check_if_rewind_or_save(pressed_keys)
 
         env.render()
         clock.tick(fps)
@@ -167,13 +251,4 @@ if __name__ == '__main__':
 
     env = gym.make("{}NoFrameskip-v4".format(env_name))
 
-    # data = DataGathering(write_state=True)
-
-    data = DataGatheringWithReset(write_state=True)
-
-    play(
-        env,
-        fps=40,
-        callback=data.gather_data,
-        # keys_to_action=utils.extended_keymap()
-    )
+    play(env, fps=40)
