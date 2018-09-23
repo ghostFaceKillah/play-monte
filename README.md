@@ -2,9 +2,7 @@ Playing Montezuma's Revenge for greater good
 ============================================
 
 Good luck !
-
 Steering: arrows + space for jump
-
 Recording stops if you don't move for 5 seconds.
 
 Dependencies
@@ -32,6 +30,9 @@ python gather_fullscreen.py
 ```
 
 
-Idea
-----
-Pressing down cancels other arrows, etc.
+Comments
+--------
+- [ ] How to deal with ghosting: Pressing down cancels other arrows, etc.
+- [ ] Reimplement support for Vizdoom, etc. history of commits could be helpful.
+
+
