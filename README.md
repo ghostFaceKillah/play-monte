@@ -30,3 +30,8 @@ or if you prefer fullscreen
 python gather_fullscreen.py
 
 ```
+
+
+Idea
+----
+Pressing down cancels other arrows, etc.

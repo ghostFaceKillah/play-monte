@@ -123,16 +123,26 @@ def get_keys(relevant_keys, pressed_keys, running):
     Get all pygame events and record presses of relevant keys.
     """
     # process pygame events
+    keys_to_append = []
+    keys_to_remove = []
+
     for event in pygame.event.get():
         # test events, set key states
         if event.type == pygame.KEYDOWN:
-            pressed_keys.append(event.key)
+            keys_to_append.append(event.key)
             if event.key == 27:
                 running = False
-        elif event.type == pygame.KEYUP:
-            pressed_keys.remove(event.key)
-        elif event.type == pygame.QUIT:
+        if event.type == pygame.KEYUP:
+            keys_to_remove.append(event.key)
+        if event.type == pygame.QUIT:
             running = False
+
+    for key in keys_to_append:
+        pressed_keys.add(key)
+
+    for key in keys_to_remove:
+        if key in pressed_keys:
+            pressed_keys.remove(key)
 
     return pressed_keys, running
 
@@ -177,7 +187,7 @@ def play(env, fps=30, keys_to_action_mapper=None, relevant_keys=None):
     if keys_to_action_mapper is None:
         keys_to_action_mapper = default_key_to_action_mapper(env)
 
-    pressed_keys = []  # Holds state between env steps
+    pressed_keys = set()  # Holds state between env steps
     running = True
     env_done = False
     obs = env.reset()
@@ -194,8 +204,10 @@ def play(env, fps=30, keys_to_action_mapper=None, relevant_keys=None):
             timeout = time.time() - done_time > 5
 
             if save or timeout:
+                print("Saving data...")
                 data.save_trajectory()
                 data.new_trajectory()
+                print("Done!")
 
                 env_done = False
                 obs = env.reset()
@@ -217,30 +229,52 @@ def play(env, fps=30, keys_to_action_mapper=None, relevant_keys=None):
             env.env.restore_full_state(prev_env_state)
             env_done = False
             process_rewind = False
+            pressed_keys = set()
 
         if not rewind:
             process_rewind = True
 
         pressed_keys, running = get_keys(relevant_keys, pressed_keys, running)
+        running = True
+
+        pygame.event.pump()
+        another_pressed_keys = pygame.key.get_pressed()
+
+        print("Pressed keys = {}".format(pressed_keys))
+        print("Another pressed keys = {}".format(another_pressed_keys))
         rewind, save = check_if_rewind_or_save(pressed_keys)
 
         env.render()
         clock.tick(fps)
 
+    print("Saving data...")
+    data.save_trajectory()
+    data.new_trajectory()
+    print("Done!")
+
     pygame.quit()
 
 
 if __name__ == '__main__':
+    pygame.init()
     # env_name = 'Alien'
+    # env_name = 'Amidar'
     # env_name = 'Asteroids'
     # env_name = 'Atlantis'
+    env_name = 'BankHeist'
     # env_name = 'BattleZone'
     # env_name = 'Gravitar'
     # env_name = 'MontezumaRevenge'
-    env_name = 'Pitfall'
+    # env_name = 'MsPacman'
+    # env_name = 'Pitfall'
     # env_name = 'PrivateEye'
+    # env_name = 'RoadRunner'
+    # env_name = 'Solaris'
     # env_name = 'Qbert'
     # env_name = 'UpNDown'
+    # env_name = 'YarsRevenge'
+
+    # Hard ones : Bank Heist, Gravitar, Ms. Pacman, Pitfall!, Solaris
 
     env = gym.make("{}NoFrameskip-v4".format(env_name))
 

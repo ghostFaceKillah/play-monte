@@ -135,15 +135,15 @@ if __name__ == '__main__':
     # env_name = 'Atlantis'
     # env_name = 'BattleZone'
     # env_name = 'Gravitar'
-    # env_name = 'MontezumaRevenge'
-    env_name = 'Pitfall'
+    env_name = 'MontezumaRevenge'
+    # env_name = 'Pitfall'
     # env_name = 'PrivateEye'
     # env_name = 'Qbert'
     # env_name = 'UpNDown'
 
     env = gym.make("{}NoFrameskip-v4".format(env_name))
 
-    # data = DataGathering(write_state=True)
+    data = DataGathering(write_state=True)
 
     play(
         env,

@@ -34,7 +34,7 @@ collect 4, in total you have 8
 until you get to the screen with 3 rolling logs and an underground passage
 Take it and go left to the exit.
 
-6)
+6)  XXXX doing this
 
 After exit
 go left 63 screens
@@ -50,6 +50,8 @@ collect 1, in total you have 20
 
 8)
 
+XX doing this
+
 Go left 58 screens
 collect 12, in total you have 31
 
@@ -59,5 +61,4 @@ Take it and go left to the exit
 9)
 
 Go right 3 screens and get the gold bar
-
 

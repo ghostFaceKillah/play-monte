@@ -84,8 +84,6 @@ def extended_keymap():
     return action_map
 
 
-
-
 def mkdir_p(dir):
     """ Check if directory exists and if not, make it."""
     if not os.path.exists(dir):
