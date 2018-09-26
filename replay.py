@@ -6,10 +6,15 @@ import pandas as pd
 import pygame
 import time
 
+from enum import Enum
+from typing import Sequence, List, Set
+
 import utils
 
+from queue import PriorityQueue
 
-class DataGatheringWithReset(object):
+
+class DataGatheringWithReset:
     """
     Gathers tuples, observation, action, reward, done, emulator state.
 
@@ -90,7 +95,7 @@ class DataGatheringWithReset(object):
         if abs(rew) > 0.001:
             print("Reward!: {}".format(rew))
 
-    def process_transition(self, obs_t, obs_next, action, rew, done, info, env):
+    def store_transition(self, obs_t, obs_next, action, rew, done, info, env):
         state = self._extract_state(env)
 
         # Save data
@@ -118,115 +123,149 @@ class DataGatheringWithReset(object):
         return state
 
 
-def get_keys(relevant_keys, pressed_keys, running):
-    """
-    Get all pygame events and record presses of relevant keys.
-    """
-    # process pygame events
-    keys_to_append = []
-    keys_to_remove = []
+class Keyboard:
+    def __init__(self):
+        self.pressed_keys = set()
 
-    for event in pygame.event.get():
-        # test events, set key states
-        if event.type == pygame.KEYDOWN:
-            keys_to_append.append(event.key)
-            if event.key == 27:
-                running = False
-        if event.type == pygame.KEYUP:
-            keys_to_remove.append(event.key)
-        if event.type == pygame.QUIT:
-            running = False
+    def process_keyboard_state(self):
+        keys_to_append = []
+        keys_to_remove = []
 
-    for key in keys_to_append:
-        pressed_keys.add(key)
+        for event in pygame.event.get():
+            # test events, set key states
+            if event.type == pygame.KEYDOWN:
+                keys_to_append.append(event.key)
+            if event.type == pygame.KEYUP:
+                keys_to_remove.append(event.key)
+            if event.type == pygame.QUIT:
+                keys_to_append.append(27)
 
-    for key in keys_to_remove:
-        if key in pressed_keys:
-            pressed_keys.remove(key)
+        for key in keys_to_append:
+            self.pressed_keys.add(key)
 
-    return pressed_keys, running
+        for key in keys_to_remove:
+            if key in self.pressed_keys:
+                self.pressed_keys.remove(key)
+
+    def get_pressed_keys(self):
+        return self.get_pressed_keys()
 
 
-def default_key_to_action_mapper(env):
-    """
-    Get a default mapper action list : [int] -> action: int.
-    And list of keys that are relevant to the given atari env.
-    This mapping is given by Atari env, won't work with anything else.
-    """
-    keys_to_action = utils.extended_keymap()
+class DefaultKeyToActionMapper:
+    def __init__(self):
+        self.keys_to_action = utils.extended_keymap()
+        self.relevant_keys = set(sum(map(list, self.keys_to_action.keys()), []))
 
-    relevant_keys = set(sum(map(list, keys_to_action.keys()), []))
-
-    def mapper(pressed_keys):
-        action_meta = tuple(sorted(key for key in pressed_keys if key in relevant_keys))
-        if action_meta in keys_to_action:
-            return keys_to_action[action_meta]
+    def map(self, pressed_keys: Sequence[int]) -> int:
+        action_meta = tuple(sorted(key for key in pressed_keys if key in self.relevant_keys))
+        if action_meta in self.keys_to_action:
+            return self.keys_to_action[action_meta]
         else:
             return 0
 
-    return mapper
+
+class MetaAction(Enum):
+    CLOSE = 0
+    REWIND = 1
+    SAVE = 2
+    EPISODE_END = 3
 
 
-def check_if_rewind_or_save(keys):
-    rewind = False
-    save = False
+class DefaultKeyToMetaActionMapper:
+    timeout = time.time() - done_time > 5
 
-    for key in keys:
-        if key == pygame.K_s:
-            save = True
-        if key == pygame.K_r:
-            rewind = True
+    def map(self, pressed_keys) -> Sequence[MetaAction]:
+        """
+        Map to meta-action, such as "close", "rewind"
+        """
 
-    return rewind, save
+        actions = []
+
+        if pygame.K_s in pressed_keys:
+            actions.append(MetaAction.SAVE)
+        if pygame.K_r in pressed_keys:
+            actions.append(MetaAction.REWIND)
+        if pygame.K_ESCAPE in pressed_keys:
+            actions.append(MetaAction.CLOSE)
+
+        return actions
 
 
-def play(env, fps=30, keys_to_action_mapper=None, relevant_keys=None):
+class Play:
+    def __init__(self, env, config):
+        self.env = env
+        self.config = config
 
-    data = DataGatheringWithReset()
+        self.data = DataGatheringWithReset()
+        self.key_to_action_mapper = DefaultKeyToActionMapper()
+        self.key_to_meta_action_mapper = DefaultKeyToMetaActionMapper()
+        self.keyboard = Keyboard()
 
-    if keys_to_action_mapper is None:
-        keys_to_action_mapper = default_key_to_action_mapper(env)
+        self.clock = pygame.time.Clock()
 
-    pressed_keys = set()  # Holds state between env steps
-    running = True
-    env_done = False
-    obs = env.reset()
-    done_time = 0
-    save = False
-    rewind = False
-    process_rewind = True
+        self.obs: np.ndarray = None
+        self.prev_obs: np.ndarray = None
+        self.action: int = None
+        self.meta_actions: Sequence[MetaAction] = []
 
-    clock = pygame.time.Clock()
-    pygame.display.set_mode((1, 1))
+    def done(self):
+        return False
 
-    while running:
+    def pre_main_loop(self):
+        pygame.display.set_mode((1, 1))
+
+        obs = env.reset()
+
+        self.obs = obs
+        self.prev_obs = obs
+
+    def before_env_step(self):
+        env.render()
+
+        self.keyboard.process_keyboard_state()
+        keys = self.keyboard.get_pressed_keys()
+        self.action = self.key_to_action_mapper.map(keys)
+        self.meta_actions = self.key_to_meta_action_mapper.map(keys)
+
+    def env_step(self):
+        self.prev_obs = self.obs
+        obs, rew, env_done, info = env.step(self.action)
+
+        self.obs = obs
+        self.data.store_transition(self.prev_obs, obs, self.action, rew, env_done, info, env)
+
+        if done:
+            self.meta_actions.append*
+
+    def _rewind(self):
+        prev_env_state = self.data.rewind(self.fps)
+
+        # Atari specific!!!
+        env.env.restore_full_state(prev_env_state)
+
+
+    def post_env_step(self):
+        # Process all the actions
+
+        for meta_action in self.meta_actions:
+            if meta_action is MetaAction.CLOSE:
+                self.data.save_trajectory()
+            elif meta_action is MetaAction.REWIND:
+
+
+        if save or timeout:
+            print("Saving data...")
+            data.new_trajectory()
+            print("Done!")
+
+            env_done = False
+            obs = env.reset()
+
         if env_done:
-            timeout = time.time() - done_time > 5
-
-            if save or timeout:
-                print("Saving data...")
-                data.save_trajectory()
-                data.new_trajectory()
-                print("Done!")
-
-                env_done = False
-                obs = env.reset()
-
-        else:
-            action = keys_to_action_mapper(pressed_keys)
-            prev_obs = obs
-            obs, rew, env_done, info = env.step(action)
-
-            data.process_transition(prev_obs, obs, action, rew, env_done, info, env)
-
-            # Perhaps reset data accumulators
-            if env_done:
-                print("(s)ave or (r)ewind environment")
-                done_time = time.time()
+            print("(s)ave or (r)ewind environment")
+            done_time = time.time()
 
         if rewind and process_rewind:
-            prev_env_state = data.rewind(fps)
-            env.env.restore_full_state(prev_env_state)
             env_done = False
             process_rewind = False
             pressed_keys = set()
@@ -234,29 +273,38 @@ def play(env, fps=30, keys_to_action_mapper=None, relevant_keys=None):
         if not rewind:
             process_rewind = True
 
-        pressed_keys, running = get_keys(relevant_keys, pressed_keys, running)
-        running = True
-
-        pygame.event.pump()
-        another_pressed_keys = pygame.key.get_pressed()
-
-        print("Pressed keys = {}".format(pressed_keys))
-        print("Another pressed keys = {}".format(another_pressed_keys))
-        rewind, save = check_if_rewind_or_save(pressed_keys)
+        pass
 
         env.render()
         clock.tick(fps)
 
-    print("Saving data...")
-    data.save_trajectory()
-    data.new_trajectory()
-    print("Done!")
+    def close(self):
+        print("Saving data...")
+        data.save_trajectory()
+        data.new_trajectory()
+        print("Done!")
 
-    pygame.quit()
+        pygame.quit()
+
+
+def play(env, settings):
+    p = Play(env, settings)
+
+    p.pre_main_loop()
+
+    while not p.done():
+
+        p.before_env_step()
+
+        p.env_step()
+        p.post_env_step()
+
+    p.close()
 
 
 if __name__ == '__main__':
     pygame.init()
+
     # env_name = 'Alien'
     # env_name = 'Amidar'
     # env_name = 'Asteroids'
