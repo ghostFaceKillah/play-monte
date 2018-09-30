@@ -1,38 +1,33 @@
-Playing Montezuma's Revenge for greater good
+A tool for collecting human expert trajectories
 ============================================
 
-Good luck !
+Currently focused on Atari.
+
 Steering: arrows + space for jump
-Recording stops if you don't move for 5 seconds.
 
 Dependencies
 ============
 
-cv2, gym, pygame
-
-```
-pip install opencv-python
-pip install gym[atari]
-pip install pygame
-```
+make pipenv / pip freeze requirements
 
 
 Running
 ------
 ```
-python gather_data.py
+python run.py
 
 ```
-or if you prefer fullscreen
-```
-python gather_fullscreen.py
 
 ```
 
 TODO:
-- [ ] Rewind handler
+-----
+- [X] Rewind handler
+- [ ] Better requirements
 - [ ] Per game name saver, session name, etc
 - [ ] Comment all of the code
+- [ ] Put human inputs behind a layer of abstraction, as we could potentially
+ run an automatic expert.
 
 
 
@@ -40,5 +35,3 @@ Comments
 --------
 - [X] How to deal with ghosting: Pressing down cancels other arrows, etc.
 - [ ] Reimplement support for Vizdoom, etc. history of commits could be helpful.
-
-

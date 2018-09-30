@@ -1,10 +1,9 @@
 import gym
-import pygame
+from play import HumanDataGatheringPlay
 
-from play import Play
 
 def runner(env, settings):
-    p = Play(env, settings)
+    p = HumanDataGatheringPlay(env, settings)
 
     p.pre_main_loop()
 

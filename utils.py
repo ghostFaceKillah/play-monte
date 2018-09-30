@@ -30,6 +30,8 @@ and are ignored by gym env
 import os
 import pygame
 
+ROOT_DIR = os.path.split(__file__)[0]
+
 
 def extended_keymap():
     steering_variants = [

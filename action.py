@@ -1,4 +1,8 @@
 from enum import Enum
+import pygame
+
+REWIND_KEY = pygame.K_r
+SAVE_KEY = pygame.K_s
 
 
 class MetaAction(Enum):

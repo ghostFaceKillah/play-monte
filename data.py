@@ -13,8 +13,11 @@ class DataGatheringWithReset:
     Gathers tuples, observation, action, reward, done, emulator state.
 
     Offers a call to get back a state that was n states ago.
+
+    Saves the trajectory to the drive.
     """
-    def __init__(self):
+    def __init__(self, root_dir):
+        self.root_dir = root_dir
         self.new_trajectory()
 
         self.obs: List[...]
@@ -31,7 +34,9 @@ class DataGatheringWithReset:
         self.traj_csv_fname: str
 
     def _clear_buffers_and_counters(self):
-        """ Clear buffers and counters to prepare for writing of a new trajectory. """
+        """
+        Clear buffers and counters to prepare for writing of a new trajectory.
+        """
 
         self.obs_next = []
         self.actions = []
@@ -42,14 +47,13 @@ class DataGatheringWithReset:
 
     def new_trajectory(self):
         """
-        Prepare for recording new trajectory.
-        Prepare filepaths.
-        Flush buffers to prepare for collection of new data.
+        Prepare for recording of a new trajectory. Prepare filepaths.
+        Flush buffers to prepare for new data.
         """
 
         self._clear_buffers_and_counters()
         self.traj_id = utils.get_next_traj_id()
-        self.img_dir, self.state_dir, self.traj_csv_fname = utils.prepare_data_dir(self.traj_id)
+        self.img_dir, self.state_dir, self.traj_csv_fname = utils.prepare_data_dir(self.traj_id, self.root_dir)
 
     def _get_state_path(self, frame_id) -> str:
         state_path = os.path.join(self.state_dir, "{:07d}.npy".format(frame_id))
@@ -94,15 +98,16 @@ class DataGatheringWithReset:
             self._write_state(self.state[i], i)
 
     def _extract_state(self, env):
-        """ Pull out state out of the enironment"""
+        """ Pull out the state out of the enironment"""
         return env.env.clone_full_state()
 
     def _log_transition(self, obs_t, obs_next, action, rew, done, info, env):
-        """ Maybe we want to log the transition in some way. Then log it here. """
+        """ Maybe log the transition. """
         if abs(rew) > 0.001:
             print("Reward!: {}".format(rew))
 
     def store_transition(self, obs_t, obs_next, action, rew, done, info, env):
+        """ Store a transition for the further record """
         state = self._extract_state(env)
 
         # Save data

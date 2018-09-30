@@ -1,15 +1,32 @@
 import abc
 import numpy as np
 import pygame
-
+import os
 from typing import List
 
 from action import MetaAction
 from data import DataGatheringWithReset
 from keyboard import AtariXorKeyboard, DefaultKeyToActionMapper, DefaultKeyToMetaActionMapper
+import utils
 
 
 class AbstractPlay(abc.ABC):
+    """
+    Used for recording expert trajectories.
+
+    Its main goal is holding & updating state of sub-components:
+    expert inputs, env and data recording in clear, independent steps.
+
+    Example usage
+    -------------
+    p = HumanDataGatheringPlay(env, settings)
+    p.pre_main_loop()
+    while not p.done():
+        p.before_env_step()
+        p.env_step()
+        p.post_env_step()
+
+    """
     @abc.abstractmethod
     def done(self):
         ...
@@ -31,13 +48,21 @@ class AbstractPlay(abc.ABC):
 
 
 class State:
+    """
+    Data class representing current state in the reinforcement
+    learning sense, as collected from the environment.
+    """
     obs: np.ndarray
     prev_obs: np.ndarray
     action: int
     meta_actions: List[MetaAction]
 
 
-class Play:
+class HumanDataGatheringPlay:
+    """
+    In its current this class is pretty atari-specific,
+    especially rewind-processing and keyboard processing.
+    """
     def __init__(self, env, config):
         self.env = env
         self.config = config
@@ -47,7 +72,7 @@ class Play:
         else:
             self.fps = 60
 
-        self.data = DataGatheringWithReset()
+        self.data = DataGatheringWithReset(self._get_data_base_dir())
         self.key_to_action_mapper = DefaultKeyToActionMapper()
         self.key_to_meta_action_mapper = DefaultKeyToMetaActionMapper()
         self.keyboard = AtariXorKeyboard()
@@ -64,6 +89,32 @@ class Play:
             MetaAction.SAVE: self._process_save,
             MetaAction.EPISODE_END: self._process_episode_end
         }
+
+    def _config(self, key, default):
+        if key in self.config:
+            return self.config[key]
+        else:
+            return default
+
+    def _get_data_base_dir(self):
+        """
+        Get the dir where the data is going to be recorded.
+        """
+        base_dir = self._config(
+            'base_dir',
+            os.path.join(utils.ROOT_DIR, 'data')
+        )
+
+        env_name = self.env.spec._env_name
+
+        run_name = self._config(
+            'run_name',
+            'default'
+        )
+
+        final_dir = os.path.join(base_dir, env_name, run_name)
+
+        return final_dir
 
     def done(self):
         return self.closing
@@ -99,8 +150,7 @@ class Play:
 
     def _process_rewind(self):
         prev_env_state = self.data.rewind(self.fps)
-
-        # Atari specific!!!
+        self.keyboard.make_rewind_key_up()
         self.env.env.restore_full_state(prev_env_state)
 
     def close(self):
