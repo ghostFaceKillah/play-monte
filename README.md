@@ -29,10 +29,16 @@ python gather_fullscreen.py
 
 ```
 
+TODO:
+- [ ] Rewind handler
+- [ ] Per game name saver, session name, etc
+- [ ] Comment all of the code
+
+
 
 Comments
 --------
-- [ ] How to deal with ghosting: Pressing down cancels other arrows, etc.
+- [X] How to deal with ghosting: Pressing down cancels other arrows, etc.
 - [ ] Reimplement support for Vizdoom, etc. history of commits could be helpful.
 
 
