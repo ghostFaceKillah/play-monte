@@ -52,7 +52,7 @@ class DataGatheringWithReset:
         """
 
         self._clear_buffers_and_counters()
-        self.traj_id = utils.get_next_traj_id()
+        self.traj_id = utils.get_next_traj_id(self.root_dir)
         self.img_dir, self.state_dir, self.traj_csv_fname = utils.prepare_data_dir(self.traj_id, self.root_dir)
 
     def _get_state_path(self, frame_id) -> str:
