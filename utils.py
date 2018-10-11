@@ -112,7 +112,7 @@ def prepare_data_dir(traj_no, root_data_dir='data'):
     return screen_dir, states_dir, csv_name
 
 
-def get_next_traj_id(root_data_dir='data') -> int:
+def get_next_traj_id(root_data_dir) -> int:
     if not os.path.exists(root_data_dir):
         return 0
 
