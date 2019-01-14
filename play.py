@@ -2,11 +2,13 @@ import abc
 import numpy as np
 import pygame
 import os
+import gym
+
 from typing import List
 
 from action import MetaAction
-from data import DataGatheringWithReset
-from keyboard import AtariXorKeyboard, DefaultKeyToActionMapper, DefaultKeyToMetaActionMapper
+from agent import Agent, HumanAgent
+from data import DataGatheringWithReset, DataGatherer
 import utils
 
 
@@ -27,61 +29,65 @@ class AbstractPlay(abc.ABC):
         p.post_env_step()
 
     """
+    def __init__(self, agent: Agent, env: gym.Env, data: DataGatherer):
+        self.agent = agent
+        self.env = env
+        self.data = data
+
+        self.obs = None
+        self.prev_obs = None
+        self.action = None
+        self.meta_actions = []
+
     @abc.abstractmethod
     def done(self):
+        """
+        Decide if we are done with data gathering.
+        """
         ...
 
     def pre_main_loop(self):
-        ...
+        """
+        Perform initialization before the main data gathering loop.
+        """
+        self.obs = self.prev_obs = self.env.reset()
+        self.agent.initialize()
 
     def before_env_step(self):
-        ...
+        """
+        Things you need to do before the environment step:
+        Pass inputs to agent, get back actions and metactions
+        """
+        self.action, self.meta_actions = self.agent.act(self.env, self.obs)
 
     def env_step(self):
-        ...
+        self.prev_obs = self.obs
+        self.obs, rew, done, info = self.env.step(self.action)
+
+        self.data.store_transition(self.prev_obs, self.obs, self.action, rew, done, info, self.env)
+
+        if done:
+            self.meta_actions.append(MetaAction.EPISODE_END)
 
     def post_env_step(self):
+        """" Process the meta-actions: closing the env, etc """
         ...
 
+    @abc.abstractmethod
     def close(self):
         ...
 
 
-class State:
+class HumanDataGatheringPlay(AbstractPlay):
     """
-    Data class representing current state in the reinforcement
-    learning sense, as collected from the environment.
+    An instance of data collector that:
+    - is Atari-specific (due to way state is saved and restored)
+    - Offers rolling back time when you press 'R'
     """
-    obs: np.ndarray
-    prev_obs: np.ndarray
-    action: int
-    meta_actions: List[MetaAction]
-
-
-class HumanDataGatheringPlay:
-    """
-    In its current this class is pretty atari-specific,
-    especially rewind-processing and keyboard processing.
-    """
-    def __init__(self, env, config):
-        self.env = env
-        self.config = config
-
-        if 'fps' in self.config:
-            self.fps = self.config['fps']
-        else:
-            self.fps = 60
-
-        self.data = DataGatheringWithReset(self._get_data_base_dir())
-        self.key_to_action_mapper = DefaultKeyToActionMapper()
-        self.key_to_meta_action_mapper = DefaultKeyToMetaActionMapper()
-        self.keyboard = AtariXorKeyboard()
-
-        pygame.init()
-        self.clock = pygame.time.Clock()
-
-        self.state = State()
+    def __init__(self, agent: HumanAgent, env, data: DataGatherer):
+        super().__init__(agent, env, data)
         self.closing = False
+        self.fps = self.agent.fps
 
         self._handlers = {
             MetaAction.CLOSE: self.close,
@@ -90,75 +96,18 @@ class HumanDataGatheringPlay:
             MetaAction.EPISODE_END: self._process_episode_end
         }
 
-    def _config(self, key, default):
-        if key in self.config:
-            return self.config[key]
-        else:
-            return default
-
-    def _get_data_base_dir(self):
-        """
-        Get the dir where the data is going to be recorded.
-        """
-        base_dir = self._config(
-            'base_dir',
-            os.path.join(utils.ROOT_DIR, 'data')
-        )
-
-        env_name = self.env.spec._env_name
-
-        run_name = self._config(
-            'run_name',
-            'default'
-        )
-
-        final_dir = os.path.join(base_dir, env_name, run_name)
-
-        return final_dir
-
-    def done(self):
-        return self.closing
-
-    def pre_main_loop(self):
-        pygame.display.set_mode((1, 1))
-
-        obs = self.env.reset()
-
-        self.state.obs = obs
-        self.state.prev_obs = obs
-
-    def before_env_step(self):
-
-        self.keyboard.process_keyboard_state()
-        keys = self.keyboard.get_pressed_keys()
-        self.state.action = self.key_to_action_mapper.map(keys)
-        self.state.meta_actions = self.key_to_meta_action_mapper.map(keys)
-
-        self.env.render()
-
-    def env_step(self):
-        self.state.prev_obs = self.state.obs
-        self.state.obs, rew, done, info = self.env.step(self.state.action)
-
-        self.data.store_transition(
-            self.state.prev_obs, self.state.obs, self.state.action,
-            rew, done, info, self.env
-        )
-
-        if done:
-            self.state.meta_actions.append(MetaAction.EPISODE_END)
-
     def _process_rewind(self):
         prev_env_state = self.data.rewind(self.fps)
-        self.keyboard.make_rewind_key_up()
+        self.agent.rewind_key_up()
         self.env.env.restore_full_state(prev_env_state)
 
-    def close(self):
-        print("Saving data...")
-        self.data.save_trajectory()
-        print("Done!")
-        self.env.close()
-        self.closing = True
+    def before_env_step(self):
+        """
+        Things you need to do before the environment step:
+        Pass inputs to agent, get back actions and metactions
+        """
+        self.agent.process_keyboard()
+        self.action, self.meta_actions = self.agent.act(self.env, self.obs)
 
     def _process_save(self):
         self.data.save_trajectory()
@@ -167,16 +116,27 @@ class HumanDataGatheringPlay:
     def _process_episode_end(self):
         obs = self.env.reset()
 
-        self.state.obs = obs
-        self.state.prev_obs = obs
+        self.obs = obs
+        self.prev_obs = obs
 
         self.data.save_trajectory()
         self.data.new_trajectory()
 
+    def done(self):
+        return self.closing
+
+    def close(self):
+        print("Saving data...")
+        self.data.save_trajectory()
+        print("Done!")
+        self.env.close()
+        self.closing = True
+
     def post_env_step(self):
         # Process all the meta actions
 
-        for meta_action in set(self.state.meta_actions):
+        for meta_action in set(self.meta_actions):
             self._handlers[meta_action]()
 
-        self.clock.tick(self.fps)
+        self.agent.tick_clock()
+

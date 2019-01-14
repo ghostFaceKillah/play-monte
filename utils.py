@@ -125,3 +125,16 @@ def get_next_traj_id(root_data_dir) -> int:
         return 0
     else:
         return 1 + max(relevant_files)
+
+
+def get_data_base_dir(config, env):
+    """ Get reasonable default dir to record the data in """
+    data_path = os.path.join(ROOT_DIR, 'data')
+
+    base_dir = config['base_dir'] if 'base_dir' in config else data_path
+    run_name = config['run_name'] if 'run_name' in config else 'default'
+    env_name = env.spec._env_name
+
+    final_dir = os.path.join(base_dir, env_name, run_name)
+
+    return final_dir

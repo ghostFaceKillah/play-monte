@@ -1,3 +1,4 @@
+import abc
 import os
 from typing import List
 
@@ -8,7 +9,21 @@ import pandas as pd
 import utils
 
 
-class DataGatheringWithReset:
+class DataGatherer(abc.ABC):
+    @abc.abstractmethod
+    def store_transition(self, obs_t, obs_next, action, rew, done, info, env):
+        ...
+
+    @abc.abstractmethod
+    def new_trajectory(self):
+        ...
+
+    @abc.abstractmethod
+    def save_trajectory(self):
+        ...
+
+
+class DataGatheringWithReset(DataGatherer):
     """
     Gathers tuples, observation, action, reward, done, emulator state.
 
