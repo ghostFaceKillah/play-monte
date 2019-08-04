@@ -11,9 +11,11 @@ Dependencies
 ============
 Install a bunch of dependencies.
 
-`pip install gym[atari]`
-`pip install pandas`
-`pip install pygame`
+```
+pip install gym[atari]
+pip install pandas
+pip install pygame
+```
 
 Running
 ------
