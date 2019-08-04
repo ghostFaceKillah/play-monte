@@ -9,9 +9,11 @@ r - rewind the game slight back (welcome, immortality) !
 
 Dependencies
 ============
+Install a bunch of dependencies.
 
-TODO
-`make pipenv / pip freeze requirements`
+`pip install gym[atari]`
+`pip install pandas`
+`pip install pygame`
 
 Running
 ------
